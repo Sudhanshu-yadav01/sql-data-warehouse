@@ -1,0 +1,116 @@
+--we get the duplicate 
+select cst_id,count(*)
+from bronze.crm_cust_info
+group by cst_id
+having count(*)>1 or cst_id is null
+
+
+--use row function to pick the latest data of user 29466
+
+select * 
+from bronze.crm_cust_info
+where cst_id=29466
+
+select * ,
+ROW_NUMBER() OVER(Partition by cst_id order by cst_create_date desc) as flag
+from bronze.crm_cust_info
+where cst_id=29466
+
+--check for all data we conclude flag 1 is goining to use this give 1 flag data 
+--process 1
+select * 
+from (
+select * ,
+ROW_NUMBER() OVER(Partition by cst_id order by cst_create_date desc) as flag
+from bronze.crm_cust_info) t where flag =1
+
+
+--clean spaces
+--expected no result
+select cst_firstname
+from bronze.crm_cust_info
+where cst_firstname != trim(cst_firstname)
+
+--space cleaning done
+--process 2
+select cst_id,
+       cst_key,
+       trim(cst_firstname) as cst_firstname,
+       trim(cst_lastname) as cst_lastname,
+       cst_material_status,
+       cst_gndr,
+       cst_create_date
+from (
+select * ,
+ROW_NUMBER() OVER(Partition by cst_id order by cst_create_date desc) as flag
+from bronze.crm_cust_info) t where flag =1
+
+--change m to male and f to female andmaterial satus also
+select distinct cst_gndr from bronze.crm_cust_info
+select distinct cst_material_status from bronze.crm_cust_info
+
+--do changes 
+--process3
+select cst_id,
+       cst_key,
+       trim(cst_firstname) as cst_firstname,
+       trim(cst_lastname) as cst_lastname,
+       
+       case when upper(TRIM(cst_material_status ))='S' then 'Single'
+            when upper(TRIM(cst_material_status ))='M' then 'Married'
+       else 'N/A'
+       END cst_material_status,
+       
+       case when upper(TRIM(cst_gndr ))='F' then 'Female'
+            when upper(TRIM(cst_gndr ))='M' then 'Male'
+       else 'N/A'
+       END cst_gndr,
+       
+       cst_create_date
+from (
+select * ,
+ROW_NUMBER() OVER(Partition by cst_id order by cst_create_date desc) as flag
+from bronze.crm_cust_info) t where flag =1
+
+--insert clean datat to silver.crm_cust_info
+TRUNCATE TABLE silver.crm_cust_info;
+insert into silver.crm_cust_info(
+    cst_id ,
+	cst_key ,
+	cst_firstname ,
+	cst_lastname ,
+	cst_material_status ,
+	cst_gndr ,
+	cst_create_date 
+)
+select cst_id,
+       cst_key,
+       trim(cst_firstname) as cst_firstname,
+       trim(cst_lastname) as cst_lastname,
+       
+       case when upper(TRIM(cst_material_status ))='S' then 'Single'
+            when upper(TRIM(cst_material_status ))='M' then 'Married'
+       else 'N/A'
+       END cst_material_status,
+       
+       case when upper(TRIM(cst_gndr ))='F' then 'Female'
+            when upper(TRIM(cst_gndr ))='M' then 'Male'
+       else 'N/A'
+       END cst_gndr,
+       
+       cst_create_date
+from (
+select * ,
+ROW_NUMBER() OVER(Partition by cst_id order by cst_create_date desc) as flag
+from bronze.crm_cust_info) t where flag =1 AND cst_id IS NOT NULL;
+
+
+
+--check for dupliactes in silver
+--we get the duplicate 
+select cst_id,count(*)
+from silver.crm_cust_info
+group by cst_id
+having count(*)>1 or cst_id is null
+
+select * from silver.crm_cust_info
