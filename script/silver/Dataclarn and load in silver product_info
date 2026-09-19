@@ -1,0 +1,155 @@
+-- crm_product_info 
+select prd_id,
+      prd_key,
+      prd_nm,
+      prd_cost,
+      prd_line,
+      prd_start_dt,
+      prd_end_dt
+from bronze.crm_prd_info
+
+select distinct cid from bronze.erp_px_cat_g1v2
+--to join cid from remp ( AC_BC ) we change extract and change - to _ to 
+--make new cat_id in crm_ product
+--process 1
+select prd_id,
+      prd_key,
+      replace (SUBSTRING(prd_key,0,5),'-','_') as cat_id,
+      
+      prd_nm,
+      prd_cost,
+      prd_line,
+      prd_start_dt,
+      prd_end_dt
+from bronze.crm_prd_info
+
+select sls_prd_key from bronze.crm_sales_details
+-- to join sls_prodct _key and crm_product_info use prd_key sunstring 7 to last length
+select prd_id,
+      prd_key,
+      replace (SUBSTRING(prd_key,0,5),'-','_') as cat_id,
+      SUBSTRING(prd_key,7,len(prd_key)) as prd_key,
+      prd_nm,
+      prd_cost,
+      prd_line,
+      prd_start_dt,
+      prd_end_dt
+from bronze.crm_prd_info
+
+--basics clean checks
+select prd_nm from bronze.crm_prd_info
+where prd_nm !=TRIM(prd_nm)
+
+select prd_cost from bronze.crm_prd_info
+where prd_cost =0 or prd_cost is null
+--nul detected need to change
+select prd_id,
+      prd_key,
+      replace (SUBSTRING(prd_key,0,5),'-','_') as cat_id,
+      SUBSTRING(prd_key,7,len(prd_key)) as prd_key,
+      prd_nm,
+      isnull (prd_cost,0) as prd_cost,
+      prd_line,
+      prd_start_dt,
+      prd_end_dt
+from bronze.crm_prd_info
+
+--- make m=mountain ,r to regular,s=other sales,t to touring
+select distinct prd_line from bronze.crm_prd_info
+---
+select prd_id,
+      prd_key,
+      replace (SUBSTRING(prd_key,0,5),'-','_') as cat_id,
+      SUBSTRING(prd_key,7,len(prd_key)) as prd_key,
+      prd_nm,
+      isnull (prd_cost,0) as prd_cost,
+      case UPPER(trim(prd_line))
+           when 'M' then 'Mountain'
+           when 'R' then 'Regular'
+           when 'S' then 'Other sales'
+           when 'T' then 'Touring'
+           Else 'N/A'
+      end as prd_line,   
+      prd_start_dt,
+      prd_end_dt
+from bronze.crm_prd_info
+
+---end_date = start of next record  date -1
+
+
+---AC-HE-HL-U509---AC-HE-HL-U509-R
+--we get end date now proper add it to code
+select prd_id,
+      prd_key,
+      prd_nm,
+      prd_start_dt,
+      prd_end_dt,
+      lead(prd_start_dt) over(partition by prd_key order by prd_start_dt )-1 as prd_end_dt_test
+from bronze.crm_prd_info
+where prd_key in('AC-HE-HL-U509','AC-HE-HL-U509-R')
+
+
+---
+select prd_id,
+      
+      replace (SUBSTRING(prd_key,0,5),'-','_') as cat_id,
+      SUBSTRING(prd_key,7,len(prd_key)) as prd_key,
+      prd_nm,
+      isnull (prd_cost,0) as prd_cost,
+      case UPPER(trim(prd_line))
+           when 'M' then 'Mountain'
+           when 'R' then 'Regular'
+           when 'S' then 'Other sales'
+           when 'T' then 'Touring'
+           Else 'N/A'
+      end as prd_line,   
+      cast(prd_start_dt as date),
+      cast (lead(prd_start_dt) over(partition by prd_key order by prd_start_dt )-1 as date) as prd_end_dt
+from bronze.crm_prd_info
+
+--- add cat id colums in silver layer table to work and join table and our changes
+IF OBJECT_ID('silver.crm_prd_info','U') IS NOT NULL
+	DROP TABLE silver.crm_prd_info;
+create table silver.crm_prd_info(
+	prd_id int,
+    cat_id nvarchar(50),
+	prd_key nvarchar(50),
+	prd_nm nvarchar(50),
+	prd_cost int,
+	prd_line nvarchar(50),
+	prd_start_dt date,
+	prd_end_dt date,
+	dwh_create_date datetime2 default getdate()
+
+);
+
+
+---now insert it in to bronze to silver
+insert into silver.crm_prd_info(
+    prd_id ,
+    cat_id ,
+	prd_key ,
+	prd_nm ,
+	prd_cost ,
+	prd_line ,
+	prd_start_dt ,
+	prd_end_dt 
+)
+select prd_id,
+      replace (SUBSTRING(prd_key,0,5),'-','_') as cat_id,
+      SUBSTRING(prd_key,7,len(prd_key)) as prd_key,
+      prd_nm,
+      isnull (prd_cost,0) as prd_cost,
+      case UPPER(trim(prd_line))
+           when 'M' then 'Mountain'
+           when 'R' then 'Regular'
+           when 'S' then 'Other sales'
+           when 'T' then 'Touring'
+           Else 'N/A'
+      end as prd_line,   
+      cast(prd_start_dt as date),
+      cast (lead(prd_start_dt) over(partition by prd_key order by prd_start_dt )-1 as date) as prd_end_dt
+from bronze.crm_prd_info
+
+
+select * from silver.crm_prd_info
