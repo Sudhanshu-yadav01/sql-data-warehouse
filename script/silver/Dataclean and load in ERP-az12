@@ -1,0 +1,66 @@
+--cid=NASAW00011000
+select cid,
+bdate,
+gen
+from bronze.erp_cust_az12
+
+
+--key=AW00011006
+select * from silver.crm_cust_info
+
+-- cleaning
+--process1
+select 
+cid,
+case when cid like 'NAS%' then SUBSTRING(cid,4,len(cid))
+	 else cid
+end as cid,
+bdate,
+gen
+from bronze.erp_cust_az12
+
+--date range
+select 
+cid,
+bdate
+from bronze.erp_cust_az12
+where bdate>getdate()
+
+--date cleaning
+
+select 
+
+case when cid like 'NAS%' then SUBSTRING(cid,4,len(cid))
+	 else cid
+end as cid,
+case when bdate>getdate() then null
+	 else bdate
+end as bdate,	 
+
+gen
+from bronze.erp_cust_az12
+
+--gender cleaning inpection
+select distinct gen,
+case when upper(trim(gen)) in('F','Female') then 'Female'
+	when upper(trim(gen)) in('M','Male') then 'Male'
+	else 'N/A'
+End as gen
+from bronze.erp_cust_az12
+
+--process 2 insert in to silver
+insert into silver.erp_cust_az12(cid,bdate,gen)
+select 
+case when cid like 'NAS%' then SUBSTRING(cid,4,len(cid))
+	 else cid
+end as cid,
+case when bdate>getdate() then null
+	 else bdate
+end as bdate,	 
+case when upper(trim(gen)) in('F','Female') then 'Female'
+	when upper(trim(gen)) in('M','Male') then 'Male'
+	else 'N/A'
+End as gen
+from bronze.erp_cust_az12
+
+select * from silver.erp_cust_az12
