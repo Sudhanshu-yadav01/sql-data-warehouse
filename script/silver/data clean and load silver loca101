@@ -1,0 +1,28 @@
+select	cid,
+		cntry
+from bronze.erp_loc_a101
+
+select cst_key
+from silver.crm_cust_info
+
+-- there - in bronze id replace it
+--process 1
+select	REPLACE(cid,'-','')cid,
+		cntry
+from bronze.erp_loc_a101
+
+--data stndarization and consistency
+select distinct cntry
+from bronze.erp_loc_a101
+order by cntry
+
+--process 2 country standartied and inssert to silver
+insert into silver.erp_loc_a101(cid,cntry)
+select	REPLACE(cid,'-','')cid,
+		case 
+		when trim(cntry ) ='DE' then'Germany'
+		when trim(cntry ) in('US','USA') then'United States'
+		when trim(cntry ) ='' or cntry is null then'N/A'
+		else trim(cntry)
+		End as cntry
+from bronze.erp_loc_a101
